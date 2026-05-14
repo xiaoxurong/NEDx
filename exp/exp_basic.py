@@ -1,20 +1,22 @@
 import os
 import torch
-from model import PatchMLP
+from model import PatchMLP, ROCKET, PatchTransformer, InceptionTime
 
 
 class Exp_Basic(object):
     def __init__(self, args):
         self.args = args
         self.model_dict = {
-            'PatchMLP': PatchMLP
+            'PatchMLP':         PatchMLP,
+            'ROCKET':           ROCKET,
+            'PatchTransformer': PatchTransformer,
+            'InceptionTime':    InceptionTime,
         }
         self.device = self._acquire_device()
         self.model = self._build_model().to(self.device)
 
     def _build_model(self):
         raise NotImplementedError
-        
         return None
 
     def _acquire_device(self):

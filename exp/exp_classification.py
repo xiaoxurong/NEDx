@@ -1,16 +1,18 @@
+import os
+import warnings
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utils.metrics import *
-from utils.tools import EarlyStopping, adjust_learning_rate, visual
+
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-
-import os
-import warnings
-import numpy as np
+from utils.metrics import binary_classification_metrics, multiclass_classification_metrics
+from utils.tools import EarlyStopping, adjust_learning_rate
 
 warnings.filterwarnings('ignore')
+
 
 class Exp_Classification(Exp_Basic):
     def __init__(self, args):
@@ -33,29 +35,31 @@ class Exp_Classification(Exp_Basic):
             return nn.BCEWithLogitsLoss()
         else:
             return nn.CrossEntropyLoss()
-    
+
     def forward_classification(self, batch_x):
-        outputs = self.model(batch_x)   # (B, T, D) or (B, D)
-
+        outputs = self.model(batch_x)          # (B, 1), (B, D), or (B, T, D)
         if outputs.dim() == 3:
-            outputs = outputs.mean(dim=1)  # global average pooling
+            outputs = outputs.mean(dim=1)      # global avg pool over time → (B, D)
+        return outputs
 
-        return outputs  # (B, num_classes)
-    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Train
+    # ─────────────────────────────────────────────────────────────────────────
+
     def train(self, setting):
         train_data, train_loader = self._get_data('train')
-        val_data, val_loader = self._get_data('val')
+        val_data,   val_loader   = self._get_data('val')
 
         path = os.path.join(self.args.checkpoints, setting)
         os.makedirs(path, exist_ok=True)
 
-        optimizer = self._select_optimizer()
-        criterion = self._select_criterion()
+        optimizer     = self._select_optimizer()
+        criterion     = self._select_criterion()
         early_stopping = EarlyStopping(patience=self.args.patience, verbose=True)
 
         for epoch in range(self.args.train_epochs):
             self.model.train()
-            train_loss = []
+            train_losses = []
 
             for batch_x, batch_y in train_loader:
                 batch_x = batch_x.float().to(self.device)
@@ -65,20 +69,19 @@ class Exp_Classification(Exp_Basic):
                 logits = self.forward_classification(batch_x)
 
                 if self.args.num_classes == 2:
-                    batch_y = batch_y.float()
-                    loss = criterion(logits.squeeze(-1), batch_y)
+                    loss = criterion(logits.squeeze(-1), batch_y.float())
                 else:
                     loss = criterion(logits, batch_y)
 
                 loss.backward()
                 optimizer.step()
-                train_loss.append(loss.item())
+                train_losses.append(loss.item())
 
-            val_loss, val_metric, val_preds, val_trues = self.validate(val_loader, criterion)
+            val_loss, val_metric, _, _ = self.validate(val_loader, criterion)
 
             print(
-                f"Epoch {epoch+1} | "
-                f"Train Loss {np.mean(train_loss):.4f} | "
+                f"Epoch {epoch+1:3d} | "
+                f"Train Loss {np.mean(train_losses):.4f} | "
                 f"Val Loss {val_loss:.4f} | "
                 f"AUROC {val_metric['auroc']:.4f} | "
                 f"F1 {val_metric['f1']:.4f}"
@@ -86,10 +89,46 @@ class Exp_Classification(Exp_Basic):
 
             early_stopping(val_loss, self.model, path)
             if early_stopping.early_stop:
+                print("Early stopping triggered.")
                 break
 
-        self.model.load_state_dict(torch.load(path + '/checkpoint.pth'))
+        # Restore best checkpoint
+        best_ckpt = os.path.join(path, 'checkpoint.pth')
+        self.model.load_state_dict(torch.load(best_ckpt, map_location=self.device))
         return self.model
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Test  — runs on the held-out test set and returns a metrics dict
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def test(self, setting) -> dict:
+        """
+        Evaluate on the test split using the best checkpoint saved during train().
+        Returns a dict of metrics (auroc, f1, acc, …) for fold aggregation in run.py.
+        """
+        test_data, test_loader = self._get_data('test')
+
+        # Best checkpoint was already loaded at the end of train(), but reload
+        # explicitly here so test() can also be called standalone.
+        ckpt_path = os.path.join(self.args.checkpoints, setting, 'checkpoint.pth')
+        if os.path.exists(ckpt_path):
+            self.model.load_state_dict(torch.load(ckpt_path, map_location=self.device))
+        else:
+            print(f"Warning: checkpoint not found at {ckpt_path}, using current model weights.")
+
+        criterion = self._select_criterion()
+        test_loss, test_metric, test_preds, test_trues = self.validate(test_loader, criterion)
+
+        print(
+            f"[Test]  Loss {test_loss:.4f} | "
+            + " | ".join(f"{k.upper()} {v:.4f}" for k, v in test_metric.items())
+        )
+
+        return test_metric   # e.g. {'auroc': 0.72, 'f1': 0.45, 'acc': 0.88, ...}
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Validate  — shared by train loop and test()
+    # ─────────────────────────────────────────────────────────────────────────
 
     def validate(self, loader, criterion):
         self.model.eval()
@@ -103,9 +142,9 @@ class Exp_Classification(Exp_Basic):
                 logits = self.forward_classification(batch_x)
 
                 if self.args.num_classes == 2:
-                    logits = logits.squeeze(-1)   # enforce (B,)
-                    loss = criterion(logits, batch_y.float())
-                    prob = torch.sigmoid(logits).cpu().numpy()
+                    logits = logits.squeeze(-1)                       # (B,)
+                    loss   = criterion(logits, batch_y.float())
+                    prob   = torch.sigmoid(logits).cpu().numpy()
                 else:
                     loss = criterion(logits, batch_y)
                     prob = torch.softmax(logits, dim=1).cpu().numpy()
@@ -115,10 +154,12 @@ class Exp_Classification(Exp_Basic):
                 trues.append(batch_y.cpu().numpy())
 
         preds = np.concatenate(preds)
-        print("Any NaN in preds?", np.isnan(preds).any())
-        print("Any inf in preds?", np.isinf(preds).any())
-        print("Pred stats:", np.nanmin(preds), np.nanmax(preds))
         trues = np.concatenate(trues)
+
+        # Only warn when something is actually wrong — don't print every epoch
+        if np.isnan(preds).any() or np.isinf(preds).any():
+            print(f"WARNING: predictions contain NaN/Inf! "
+                  f"min={np.nanmin(preds):.4f}  max={np.nanmax(preds):.4f}")
 
         if self.args.num_classes == 2:
             metric = binary_classification_metrics(trues, preds, threshold=0.5)
