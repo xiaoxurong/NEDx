@@ -1,103 +1,99 @@
+"""
+model/PatchMLP.py
+Multi-scale patch MLP for CTG classification.
+
+Architecture:
+  Emb: each input channel (FHR, TOCO) is independently patchified at 4 scales,
+       each patch projected to d_model//4 via a linear + mean-pool over patches,
+       then concatenated → (B, 2, d_model).
+  Encoder: MLP-Mixer style — ff1 mixes features (d_model dim),
+           ff2 mixes across the 2 channel tokens (enc_in=2 dim).
+  Classifier: mean over 2 channel tokens → Linear → logit.
+
+Patch size guide (at 4 Hz, 4 pts = 1 s):
+    150  →  37.5 s  (single deceleration)
+    300  →  75   s  (deceleration + recovery)
+    600  → 150   s  (full contraction response)
+   1200  →   5 min  (baseline trend)
+"""
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
 from layers.Embed import Emb
 
 
-class moving_avg(nn.Module):
-    """
-    Moving average block to highlight the trend of time series
-    """
-
-    def __init__(self, kernel_size, stride):
-        super(moving_avg, self).__init__()
-        self.kernel_size = kernel_size
-        self.avg = nn.AvgPool1d(kernel_size=kernel_size, stride=stride, padding=0)
-
-    def forward(self, x):
-        # padding on the both ends of time series
-        front = x[:, :, 0:1].repeat(1, 1, (self.kernel_size - 1) // 2)
-        end = x[:, :, -1:].repeat(1, 1, (self.kernel_size - 1) // 2)
-        x = torch.cat([front, x, end], dim=-1)
-
-        x = self.avg(x)
-        return x
-
-
-
-class series_decomp(nn.Module):
-    """
-    Series decomposition block
-    """
-    # use moving average to smoother the time series
-    def __init__(self, kernel_size):
-        super(series_decomp, self).__init__()
-        self.moving_avg = moving_avg(kernel_size, stride=1)
-
-    def forward(self, x):
-        moving_mean = self.moving_avg(x)
-        res = x - moving_mean
-        return res, moving_mean
-
-
-class Model(nn.Module):
-    def __init__(self, configs):
-        super().__init__()
-        self.use_norm = configs.use_norm
-
-        self.emb = Emb(configs.seq_len, configs.d_model)
-
-        self.encoder_layers = nn.ModuleList([
-            Encoder(configs.d_model, configs.enc_in)
-            for _ in range(configs.e_layers)
-        ])
-
-        self.classifier = nn.Linear(configs.d_model, 1)
-
-    def forward(self, x):
-        # x: (B, C, T)
-        if self.use_norm:
-            x = (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + 1e-5)
-
-        x = x.permute(0, 2, 1)   # (B, T, C)
-        x = self.emb(x)
-
-        for layer in self.encoder_layers:
-            x = layer(x)
-
-        x = x.mean(dim=1)        # global pooling
-        logits = self.classifier(x)
-        return logits
-
 class Encoder(nn.Module):
-
     def __init__(self, d_model, enc_in):
         super().__init__()
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
 
+        # Feature mixing: operates on d_model dimension
         self.ff1 = nn.Sequential(
             nn.Linear(d_model, d_model),
             nn.GELU(),
-            nn.Dropout(0.1)
+            nn.Dropout(0.1),
         )
-
+        # Token mixing: operates on enc_in=2 dimension (FHR ↔ TOCO)
         self.ff2 = nn.Sequential(
             nn.Linear(enc_in, enc_in),
             nn.GELU(),
-            nn.Dropout(0.1)
+            nn.Dropout(0.1),
         )
 
     def forward(self, x):
-        
-        y_0 = self.ff1(x)
-        y_0 = y_0 + x
-        y_0 = self.norm1(y_0)
-        y_1 = y_0.permute(0, 2, 1)
-        y_1 = self.ff2(y_1)
-        y_1 = y_1.permute(0, 2, 1)
-        y_2 = y_1 * y_0 + x
-        y_2 = self.norm1(y_2)
+        # x: (B, 2, d_model)
+        y_0 = self.norm1(self.ff1(x) + x)          # feature mix + residual
 
-        return y_2
+        y_1 = y_0.permute(0, 2, 1)                  # (B, d_model, 2)
+        y_1 = self.ff2(y_1)                          # token mix across 2 channels ✓
+        y_1 = y_1.permute(0, 2, 1)                  # (B, 2, d_model)
+
+        return self.norm2(y_1 * y_0 + x)            # gated residual
+
+
+class Model(nn.Module):
+    """
+    Args (read from args):
+        args.in_channels  — number of input channels (default 2: FHR + TOCO)
+        args.seq_len      — input window length in time steps (default 7200)
+        args.d_model      — hidden dimension; must be divisible by 4 (default 64)
+        args.enc_in       — same as in_channels; used for token-mixing MLP (default 2)
+        args.e_layers     — number of Encoder blocks (default 2)
+        args.use_norm     — instance-normalize each channel over time (default 1)
+        args.num_classes  — 2 for binary (outputs (B,1)), >2 for multi-class
+    """
+    def __init__(self, configs):
+        super().__init__()
+        self.in_channels = getattr(configs, 'in_channels', 2)
+        self.use_norm    = getattr(configs, 'use_norm', 1)
+        enc_in           = getattr(configs, 'enc_in', self.in_channels)
+        d_model          = getattr(configs, 'd_model', 64)
+        e_layers         = getattr(configs, 'e_layers', 2)
+
+        self.emb = Emb(configs.seq_len, d_model)
+
+        self.encoder_layers = nn.ModuleList([
+            Encoder(d_model, enc_in)
+            for _ in range(e_layers)
+        ])
+
+        self.classifier = nn.Linear(d_model, 1 if configs.num_classes == 2 else configs.num_classes)
+
+    def forward(self, x):
+        # data_provider returns (B, T, C); normalise to (B, T, C) if not already
+        if x.shape[-1] != self.in_channels:
+            x = x.permute(0, 2, 1)             # → (B, T, C)
+        x = torch.nan_to_num(x, nan=0.0)       # CTG signal-dropout protection
+
+        if self.use_norm:
+            # Instance-normalise each channel over time (dim=1 for (B,T,C))
+            x = (x - x.mean(dim=1, keepdim=True)) / (x.std(dim=1, keepdim=True) + 1e-5)
+
+        x = self.emb(x)                         # (B, 2, d_model)
+
+        for layer in self.encoder_layers:
+            x = layer(x)
+
+        x = x.mean(dim=1)                       # (B, d_model) — pool over 2 channel tokens
+        return self.classifier(x)               # (B, 1) or (B, num_classes)
