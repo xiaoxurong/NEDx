@@ -58,23 +58,24 @@ class Model(nn.Module):
         args.in_channels  — number of input channels (default 2: FHR + TOCO)
         args.seq_len      — input window length in time steps (default 7200)
         args.d_model      — hidden dimension; must be divisible by 4 (default 64)
-        args.enc_in       — same as in_channels; used for token-mixing MLP (default 2)
         args.e_layers     — number of Encoder blocks (default 2)
         args.use_norm     — instance-normalize each channel over time (default 1)
         args.num_classes  — 2 for binary (outputs (B,1)), >2 for multi-class
+
+    Note: the token-mixing MLP always uses in_channels as its dimension.
+    enc_in in the YAML is ignored by this model — remove it to avoid confusion.
     """
     def __init__(self, configs):
         super().__init__()
         self.in_channels = getattr(configs, 'in_channels', 2)
         self.use_norm    = getattr(configs, 'use_norm', 1)
-        enc_in           = getattr(configs, 'enc_in', self.in_channels)
         d_model          = getattr(configs, 'd_model', 64)
         e_layers         = getattr(configs, 'e_layers', 2)
 
         self.emb = Emb(configs.seq_len, d_model)
 
         self.encoder_layers = nn.ModuleList([
-            Encoder(d_model, enc_in)
+            Encoder(d_model, self.in_channels)   # token dim always = in_channels
             for _ in range(e_layers)
         ])
 
