@@ -118,8 +118,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--lstm_layers', type=int, default=1)
 
     # ── loss / class imbalance ────────────────────────────────────────────────
-    parser.add_argument('--use_focal',   action='store_true', default=False,
-                        help='Use focal loss instead of BCE (recommended for imbalanced data)')
+    # --use_focal / --no_focal  (mutually exclusive boolean pair)
+    focal_group = parser.add_mutually_exclusive_group()
+    focal_group.add_argument('--use_focal',  dest='use_focal', action='store_true',
+                             help='Use focal loss instead of BCE (recommended for imbalanced data)')
+    focal_group.add_argument('--no_focal',   dest='use_focal', action='store_false',
+                             help='Use standard BCE loss (overrides YAML use_focal: true)')
+    parser.set_defaults(use_focal=False)
     parser.add_argument('--focal_alpha', type=float, default=0.75,
                         help='Focal loss α — weight for positive class. '
                              'Rule of thumb: 1 - (n_pos/n_total). For 39/290 ≈ 0.87')
