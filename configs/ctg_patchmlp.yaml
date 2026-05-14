@@ -1,28 +1,42 @@
+# configs/patch_mlp.yaml
+# python run.py --config configs/patch_mlp.yaml
+#
+# patch_len guide (at 4 Hz, 4 pts = 1 s) for seq_len=2400 (10 min):
+#   [600, 300, 150, 60]  →  2.5 min / 75 s / 37.5 s / 15 s
+#   Coarsest scale (600) = half the 10-min window — captures full baseline shifts.
+#   Finest scale (60)    = 15 s — resolves individual decelerations.
 
-model: PatchMLP
+model:        "PatchMLP"
+in_channels:  1             # FHR only (no TOCO in this dataset)
+enc_in:       1             # must match in_channels (used for channel-mixing MLP)
+d_model:      64            # 512 is far too large for 1-channel + small dataset;
+                            # 64 → ff1 has 4K params/layer, much safer
+e_layers:     2             # number of Encoder (MLP-Mixer) blocks
+use_norm:     true          # instance-normalise each channel over time
+patch_len:    [600, 300, 150, 60]   # CTG-appropriate for 10-min windows at 4 Hz
+dropout:      0.2
 
-d_model: 512
-dropout: 0.1
-moving_avg: 13          # used if model still contains series_decomp
-use_norm: true          # normalization inside model
-seq_len: 2400           # 10 minutes at 4Hz
+# ── data ─────────────────────────────────────────────────────────────────────
+data:         "CTG"
+root_path:    "./dataset/"
+data_path:    "FHR10minSegments05missing.npz"
+seq_len:      2400          # 10 min × 4 Hz
+num_classes:  2
+num_workers:  4
 
-num_classes: 2
-enc_in: 1
+# ── cross-validation ─────────────────────────────────────────────────────────
+n_folds:      5
+seed:         42
 
-# =========================
-# Training config
-# =========================
-batch_size: 32
-learning_rate: 0.0001
-train_epochs: 50
-patience: 10
+# ── class imbalance ───────────────────────────────────────────────────────────
+# Update focal_alpha once you know the positive rate: alpha ≈ 1 - (n_pos/n_total)
+use_focal:    true
+focal_alpha:  0.87          # placeholder — adjust after checking dataset balance
+focal_gamma:  2.0
 
-
-# =========================
-# Data loader config
-# =========================
-data: FHR
-root_path: ./dataset/   # kept for compatibility, not used by CTG
-data_path: FHR10minSegments05missing.npz
-num_workers: 4
+# ── training ──────────────────────────────────────────────────────────────────
+train_epochs:  100
+patience:      20           # bumped from 10; 10 is too short given noisy folds
+batch_size:    32
+learning_rate: 1.0e-4
+weight_decay:  1.0e-3       # L2 regularization — important for small dataset
