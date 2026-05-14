@@ -139,26 +139,38 @@ def build_parser() -> argparse.ArgumentParser:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def merge_config(args: argparse.Namespace) -> argparse.Namespace:
-    """Load YAML config and merge with parsed args. CLI flags win over YAML."""
+    """Load YAML config and merge with parsed args. CLI flags always win over YAML.
+
+    The old approach (comparing values to defaults) failed for store_true /
+    store_false flags: --no_focal sets use_focal=False which equals the default
+    False, so the merge incorrectly treated it as "not explicitly set" and
+    overwrote it with the YAML value.
+
+    Fix: inspect sys.argv directly to build the set of keys the user actually
+    typed, then skip YAML for those keys unconditionally.
+    """
     if args.config is None:
         return args
 
     with open(args.config) as f:
         yaml_cfg: dict = yaml.safe_load(f)
 
-    # Which keys were explicitly set on the CLI (non-default)?
-    # We use a two-pass parse: once with no args to get defaults, once with real args.
-    parser = build_parser()
-    defaults = vars(parser.parse_args([]))
+    # Build the set of dest keys explicitly provided on the command line.
+    # --no_<key>  (store_false convention) maps to dest <key>.
+    import sys
+    explicit_keys: set = set()
+    for token in sys.argv[1:]:
+        if token.startswith('--'):
+            raw = token.lstrip('-').split('=')[0].replace('-', '_')
+            if raw.startswith('no_'):
+                explicit_keys.add(raw[3:])   # --no_focal → 'focal'
+            else:
+                explicit_keys.add(raw)
 
-    cli_args = vars(args)
     for key, yaml_val in yaml_cfg.items():
-        # YAML wins unless the user explicitly overrode on CLI
-        if cli_args.get(key) == defaults.get(key):
-            setattr(args, key, yaml_val)
-        # For keys not in argparse at all, always add them (model-specific extras)
-        if not hasattr(args, key):
-            setattr(args, key, yaml_val)
+        if key in explicit_keys:
+            continue                  # CLI wins — leave args untouched
+        setattr(args, key, yaml_val)  # YAML wins for everything else
 
     return args
 
