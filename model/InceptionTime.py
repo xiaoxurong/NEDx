@@ -69,6 +69,7 @@ class Model(nn.Module):
         num_groups  = getattr(args, 'e_layers',    2)
         out_dim     = 1 if args.num_classes == 2 else args.num_classes
 
+        self.in_channels = in_channels
         nb_ch_out = nb_filters * 4
         groups = []
         ch = in_channels
@@ -81,7 +82,9 @@ class Model(nn.Module):
         self.classifier = nn.Linear(nb_ch_out, out_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, C, T)
+        # Normalise to (B, C, T) — data_provider returns (B, T, C)
+        if x.shape[1] != self.in_channels:
+            x = x.permute(0, 2, 1)
         x = self.network(x)            # (B, nb_ch_out, T)
         x = self.gap(x).squeeze(-1)    # (B, nb_ch_out)
         return self.classifier(x)      # (B, out_dim)

@@ -42,6 +42,7 @@ class Model(nn.Module):
 
         self.patch_size  = patch_size
         self.num_patches = input_length // patch_size  # truncate if not divisible
+        self.in_channels = in_channels
 
         # Project flattened patch (C * patch_size) → d_model
         self.patch_embedding = nn.Sequential(
@@ -71,7 +72,9 @@ class Model(nn.Module):
         self.classifier = nn.Linear(d_model, out_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, C, T)
+        # Normalise to (B, C, T) — data_provider returns (B, T, C)
+        if x.shape[1] != self.in_channels:
+            x = x.permute(0, 2, 1)
         B, C, T = x.shape
 
         # Truncate to nearest multiple of patch_size

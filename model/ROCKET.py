@@ -33,6 +33,7 @@ class Model(nn.Module):
 
         # Binary → single logit output (BCEWithLogitsLoss + squeeze in exp_classification)
         out_dim = 1 if args.num_classes == 2 else args.num_classes
+        self.in_channels = in_channels
 
         rng = np.random.default_rng(seed)
 
@@ -85,5 +86,7 @@ class Model(nn.Module):
         return torch.cat([ppv, maxv], dim=1)   # (B, 2 * num_kernels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, C, T)
+        # Normalise to (B, C, T) — data_provider returns (B, T, C)
+        if x.shape[1] != self.in_channels:
+            x = x.permute(0, 2, 1)
         return self.classifier(self._extract_features(x))  # (B, out_dim)
