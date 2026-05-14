@@ -19,8 +19,8 @@ dropout:      0.2
 # ── data ─────────────────────────────────────────────────────────────────────
 data:         "CTG"
 root_path:    "./dataset/"
-data_path:    "FHR10minSegments05missing.npz"
-seq_len:      2400          # 10 min × 4 Hz
+data_path:    "CTG30minSegments.npz"
+seq_len:      7200          # 30 min × 4 Hz
 num_classes:  2
 num_workers:  4
 
@@ -35,8 +35,8 @@ focal_alpha:  0.87          # placeholder — adjust after checking dataset bala
 focal_gamma:  2.0
 
 # ── training ──────────────────────────────────────────────────────────────────
-train_epochs:  100
-patience:      20           # bumped from 10; 10 is too short given noisy folds
+train_epochs:  50
+patience:      15           # bumped from 10; 10 is too short given noisy folds
 batch_size:    32
 learning_rate: 1.0e-4
 weight_decay:  1.0e-3       # L2 regularization — important for small dataset
