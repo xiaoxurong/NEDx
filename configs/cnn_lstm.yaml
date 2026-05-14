@@ -1,0 +1,19 @@
+# configs/cnn_lstm.yaml
+# python run.py --config configs/cnn_lstm.yaml
+
+model:          "CNN_LSTM"
+in_channels:    1           # single-channel variant (FHR only); set to 2 for FHR+TOCO
+lstm_hidden:    64
+lstm_layers:    1           # increase to 2 if underfitting, but watch overfitting
+dropout:        0.3
+
+root_path:      "./dataset/"
+data_path:      "CTG30minSegments.npz"
+seq_len:        7200
+num_classes:    2
+n_folds:        5
+seed:           42
+train_epochs:   100
+patience:       20
+batch_size:     32
+learning_rate:  1.0e-4

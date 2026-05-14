@@ -1,0 +1,28 @@
+
+model: PatchMLP
+
+d_model: 512
+dropout: 0.1
+moving_avg: 13          # used if model still contains series_decomp
+use_norm: true          # normalization inside model
+seq_len: 2400           # 10 minutes at 4Hz
+
+num_classes: 2
+enc_in: 1
+
+# =========================
+# Training config
+# =========================
+batch_size: 32
+learning_rate: 0.0001
+train_epochs: 50
+patience: 10
+
+
+# =========================
+# Data loader config
+# =========================
+data: FHR
+root_path: ./dataset/   # kept for compatibility, not used by CTG
+data_path: FHR10minSegments05missing.npz
+num_workers: 4
