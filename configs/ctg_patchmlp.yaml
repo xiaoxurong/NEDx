@@ -7,8 +7,8 @@
 #   Finest scale (60)    = 15 s — resolves individual decelerations.
 
 model:        "PatchMLP"
-in_channels:  1             # FHR only (no TOCO in this dataset)
-enc_in:       1             # must match in_channels (used for channel-mixing MLP)
+in_channels:  2             # FHR + TOCO in this dataset
+enc_in:       2             # must match in_channels (used for channel-mixing MLP)
 d_model:      64            # 512 is far too large for 1-channel + small dataset;
                             # 64 → ff1 has 4K params/layer, much safer
 e_layers:     2             # number of Encoder (MLP-Mixer) blocks
