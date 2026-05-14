@@ -75,6 +75,8 @@ class Model(nn.Module):
         # Normalise to (B, C, T) — data_provider returns (B, T, C)
         if x.shape[1] != self.in_channels:
             x = x.permute(0, 2, 1)
+        # Replace NaN (CTG signal dropouts) with 0
+        x = torch.nan_to_num(x, nan=0.0)
         B, C, T = x.shape
 
         # Truncate to nearest multiple of patch_size

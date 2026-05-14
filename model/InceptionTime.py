@@ -85,6 +85,8 @@ class Model(nn.Module):
         # Normalise to (B, C, T) — data_provider returns (B, T, C)
         if x.shape[1] != self.in_channels:
             x = x.permute(0, 2, 1)
+        # Replace NaN (CTG signal dropouts) with 0
+        x = torch.nan_to_num(x, nan=0.0)
         x = self.network(x)            # (B, nb_ch_out, T)
         x = self.gap(x).squeeze(-1)    # (B, nb_ch_out)
         return self.classifier(x)      # (B, out_dim)
