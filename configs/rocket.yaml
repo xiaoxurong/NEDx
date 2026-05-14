@@ -9,8 +9,13 @@
 
 model:         "ROCKET"
 in_channels:   2
-num_kernels:   10000        # paper default; 5000 is usually sufficient
+num_kernels:   1000         # 1000 is sufficient for 290 samples; 10000 is overkill
 dropout:       0.0          # not applicable (no trainable conv weights)
+
+# class imbalance (39/290 ≈ 13.4% positive)
+use_focal:     true
+focal_alpha:   0.87         # ≈ 1 - (39/290)
+focal_gamma:   2.0
 
 root_path:     "./dataset/"
 data_path:     "CTG30minSegments.npz"

@@ -117,6 +117,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--lstm_hidden', type=int, default=64)
     parser.add_argument('--lstm_layers', type=int, default=1)
 
+    # ── loss / class imbalance ────────────────────────────────────────────────
+    parser.add_argument('--use_focal',   action='store_true', default=False,
+                        help='Use focal loss instead of BCE (recommended for imbalanced data)')
+    parser.add_argument('--focal_alpha', type=float, default=0.75,
+                        help='Focal loss α — weight for positive class. '
+                             'Rule of thumb: 1 - (n_pos/n_total). For 39/290 ≈ 0.87')
+    parser.add_argument('--focal_gamma', type=float, default=2.0,
+                        help='Focal loss γ — focusing strength. 0=BCE, 2=paper default')
+
     return parser
 
 
@@ -241,18 +250,8 @@ def main():
     # ── load data (subject IDs + labels only — actual tensors loaded in Dataset) ──
     data_file = os.path.join(args.root_path, args.data_path)
     data = np.load(data_file, allow_pickle=True)
-    X           = data["X"]           # adjust key name if different
-    subject_ids = data["subject_ids"]
-    labels      = data["y"]
-
-    # Drop samples with >10% NaN — signal too corrupted to be informative
-    nan_frac    = np.isnan(X).mean(axis=tuple(range(1, X.ndim)))
-    valid_mask  = nan_frac <= 0.10
-    if (~valid_mask).sum() > 0:
-        print(f"Dropping {(~valid_mask).sum()} samples with >10% NaN "
-            f"(labels: {labels[~valid_mask].tolist()})")
-    subject_ids = subject_ids[valid_mask]
-    labels      = labels[valid_mask]
+    subject_ids: np.ndarray = data["subject_ids"]
+    labels:      np.ndarray = data["y"]
 
     pos_rate = labels.mean()
     print(f"Dataset: {len(labels)} windows | {labels.sum()} positive "

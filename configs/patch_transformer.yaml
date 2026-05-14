@@ -15,6 +15,11 @@ num_heads:     4            # must divide d_model
 e_layers:      2            # transformer encoder layers
 dropout:       0.1
 
+# class imbalance
+use_focal:     true
+focal_alpha:   0.87
+focal_gamma:   2.0
+
 root_path:     "./dataset/"
 data_path:     "CTG30minSegments.npz"
 seq_len:       7200
