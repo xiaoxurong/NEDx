@@ -66,7 +66,8 @@ class Exp_Classification(Exp_Basic):
         return data_provider(self.args, flag)
 
     def _select_optimizer(self):
-        return optim.Adam(self.model.parameters(), lr=self.args.learning_rate)
+        wd = getattr(self.args, 'weight_decay', 0.0)
+        return optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=wd)
 
     def _select_criterion(self):
         if self.args.num_classes == 2:

@@ -26,7 +26,7 @@ seq_len:       7200
 num_classes:   2
 n_folds:       5
 seed:          42
-train_epochs:  100
+train_epochs:  50
 patience:      20
 batch_size:    32
 learning_rate: 1.0e-4

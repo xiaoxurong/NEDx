@@ -8,10 +8,12 @@
 
 model:         "InceptionTime"
 in_channels:   2
-d_model:       32           # nb_filters per inception branch (output = 32*4 = 128 channels)
+d_model:       16           # reduced from 32 — fewer params for 290-sample dataset
 e_layers:      2            # num_groups (each group = 3 inception blocks)
-kernel_sizes:  [41, 121, 241]   # ~10 s / ~30 s / ~60 s at 4 Hz
-dropout:       0.2
+kernel_sizes:  [41, 121, 241]   # ~10 s / ~30 s / ~60 s at 4 Hz (specified in original time steps)
+stem_stride:   4                # downsample T 7200→1800 before inception blocks (~16× cheaper)
+dropout:       0.3          # now actually applied inside each InceptionBlock
+weight_decay:  1.0e-3       # L2 regularization on Adam
 
 # class imbalance
 use_focal:     true
@@ -24,7 +26,7 @@ seq_len:       7200
 num_classes:   2
 n_folds:       5
 seed:          42
-train_epochs:  100
-patience:      20
+train_epochs:  50
+patience:      15
 batch_size:    32
 learning_rate: 1.0e-4
