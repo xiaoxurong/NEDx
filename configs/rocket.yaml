@@ -13,7 +13,7 @@ num_kernels:   1000         # 1000 is sufficient for 290 samples; 10000 is overk
 dropout:       0.0          # not applicable (no trainable conv weights)
 
 # class imbalance (39/290 ≈ 13.4% positive)
-use_focal:     true
+use_focal:     false
 focal_alpha:   0.87         # ≈ 1 - (39/290)
 focal_gamma:   2.0
 
