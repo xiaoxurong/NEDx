@@ -1,11 +1,22 @@
 # configs/inception_time.yaml
 # python run.py --config configs/inception_time.yaml
+#
+# kernel_sizes guide (at 4 Hz, 4 points = 1 s):
+#   [41, 121, 241]  →  ~10 s / ~30 s / ~60 s   (default — covers STV, variable & late decels)
+#   [81, 161, 321]  →  ~20 s / ~40 s / ~80 s   (coarser; fewer params, less overfit risk)
+#   [41,  81, 161]  →  ~10 s / ~20 s / ~40 s   (finer; may miss late decelerations)
 
 model:         "InceptionTime"
 in_channels:   2
 d_model:       32           # nb_filters per inception branch (output = 32*4 = 128 channels)
 e_layers:      2            # num_groups (each group = 3 inception blocks)
+kernel_sizes:  [41, 121, 241]   # ~10 s / ~30 s / ~60 s at 4 Hz
 dropout:       0.2
+
+# class imbalance
+use_focal:     true
+focal_alpha:   0.87         # 1 - (39/290) ≈ 0.87
+focal_gamma:   2.0
 
 root_path:     "./dataset/"
 data_path:     "CTG30minSegments.npz"
