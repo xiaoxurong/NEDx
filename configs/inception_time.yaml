@@ -16,8 +16,8 @@ dropout:       0.3          # now actually applied inside each InceptionBlock
 weight_decay:  1.0e-3       # L2 regularization on Adam
 
 # class imbalance
-use_focal:     false
-focal_alpha:   0.86         # 1 - (39/290) ≈ 0.86
+use_focal:     true
+focal_alpha:   0.84         # 1 - (39/290) ≈ 0.86
 focal_gamma:   2.0
 
 root_path:     "./dataset/"
