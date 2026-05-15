@@ -234,9 +234,6 @@ class Exp_Classification(Exp_Basic):
                 train_losses.append(loss.item())
 
             val_loss, val_metric, _, _ = self.validate(val_loader, criterion)
-            self.optimal_threshold = find_optimal_threshold(val_trues, val_probs)
-            print(f"Optimal threshold (val): {self.optimal_threshold:.3f}")
-            return self.model
 
             print(
                 f"Epoch {epoch+1:3d} | "
@@ -253,6 +250,9 @@ class Exp_Classification(Exp_Basic):
 
         best_ckpt = os.path.join(path, 'checkpoint.pth')
         self.model.load_state_dict(torch.load(best_ckpt, map_location=self.device))
+        _, _, val_probs, val_trues = self.validate(val_loader, criterion)
+        self.optimal_threshold = find_optimal_threshold(val_trues, val_probs)
+        print(f"Optimal threshold (val): {self.optimal_threshold:.3f}")
         return self.model
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -269,10 +269,11 @@ class Exp_Classification(Exp_Basic):
             print(f"Warning: checkpoint not found at {ckpt_path}, using current weights.")
 
         criterion = self._select_criterion()
-        test_loss, test_metric, _, _ = self.validate(test_loader, criterion)
+        threshold = getattr(self, 'optimal_threshold', 0.5)   # ← use val-tuned threshold
+        test_loss, test_metric, _, _ = self.validate(test_loader, criterion, threshold=threshold)
 
         print(
-            f"[Test]  Loss {test_loss:.4f} | "
+            f"[Test]  Loss {test_loss:.4f} | Threshold {threshold:.3f} | "
             + " | ".join(f"{k.upper()} {v:.4f}" for k, v in test_metric.items())
         )
         return test_metric
@@ -281,7 +282,7 @@ class Exp_Classification(Exp_Basic):
     # Validate  (shared by train loop, test, and ROCKET's test path)
     # ─────────────────────────────────────────────────────────────────────────
 
-    def validate(self, loader, criterion):
+    def validate(self, loader, criterion, threshold=0.5):
         self.model.eval()
         losses, preds, trues = [], [], []
 
@@ -312,7 +313,7 @@ class Exp_Classification(Exp_Basic):
                   f"min={np.nanmin(preds):.4f}  max={np.nanmax(preds):.4f}")
 
         if self.args.num_classes == 2:
-            metric = binary_classification_metrics(trues, preds, threshold=0.5)
+            metric = binary_classification_metrics(trues, preds, threshold=threshold)
         else:
             metric = multiclass_classification_metrics(trues, preds, average="macro")
 
