@@ -17,7 +17,7 @@ dropout:       0.1
 
 # class imbalance
 use_focal:     true
-focal_alpha:   0.82
+focal_alpha:   0.84
 focal_gamma:   2.0
 
 root_path:     "./dataset/"
