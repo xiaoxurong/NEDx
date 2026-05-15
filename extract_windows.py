@@ -28,8 +28,8 @@ Design notes
 
 - At test time, aggregate per-subject: average the predicted probabilities
   across all windows from the same subject before computing metrics.
-  See the helper function aggregate_subject_predictions() in utils/metrics.py,
-  and the note on how to plug it into exp_classification.py.
+  See the helper function subject_level_metrics() below, and the note
+  on how to plug it into exp_classification.py.
 """
 
 import numpy as np
@@ -41,7 +41,7 @@ OUTPUT_PATH    = "./dataset/CTGMultiWindow.npz"
 
 WINDOW_SIZE  = 7200    # 30 min at 4 Hz
 STEP_SIZE    = 7200    # non-overlapping (set to 3600 for 50% overlap)
-MAX_BAD_FRAC = 0.10    # skip window if >10% of FHR1 samples are missing/zero
+MAX_BAD_FRAC = 0.15    # skip window if >15% of FHR1 samples are zero (signal loss)
 
 FHR_COL      = 'FHR1'
 TOCO_COL     = 'TOCO'
@@ -70,11 +70,10 @@ for subj in data_list:
     fhr  = df[FHR_COL].values.astype(np.float32)
     toco = df[TOCO_COL].values.astype(np.float32)
 
-    # Quality mask: FHR is bad if value is zero OR mode flag is non-zero
-    if FHR_MODE_COL in df.columns:
-        fhr_bad = (df[FHR_MODE_COL].values != 0) | (fhr == 0)
-    else:
-        fhr_bad = (fhr == 0)
+    # Quality mask: FHR=0 means signal loss (can't have 0 bpm).
+    # FHR1MODE=1 is the valid-signal state (99.8% of samples); MODE=0
+    # only co-occurs with FHR=0, so checking FHR==0 is sufficient.
+    fhr_bad = (fhr == 0)
 
     for start in range(0, T - WINDOW_SIZE + 1, STEP_SIZE):
         end = start + WINDOW_SIZE
