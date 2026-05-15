@@ -1,6 +1,6 @@
 import os
 import torch
-from model import PatchMLP, ROCKET, PatchTransformer, InceptionTime
+from model import PatchMLP, ROCKET, PatchTransformer, InceptionTime, CNN_LSTM
 
 
 class Exp_Basic(object):
@@ -11,6 +11,7 @@ class Exp_Basic(object):
             'ROCKET':           ROCKET,
             'PatchTransformer': PatchTransformer,
             'InceptionTime':    InceptionTime,
+            'CNN_LSTM':         CNN_LSTM,
         }
         self.device = self._acquire_device()
         self.model = self._build_model().to(self.device)
