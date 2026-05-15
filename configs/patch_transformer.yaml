@@ -17,7 +17,7 @@ dropout:       0.1
 
 # class imbalance
 use_focal:     true
-focal_alpha:   0.83
+focal_alpha:   0.835
 focal_gamma:   2.0
 
 root_path:     "./dataset/"
@@ -28,5 +28,6 @@ n_folds:       5
 seed:          42
 train_epochs:  100
 patience:      20
-batch_size:    32
+batch_size:    64
 learning_rate: 1.0e-4
+weight_decay:  1.0e-3
