@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -57,17 +58,64 @@ def binary_classification_metrics(
         metrics["auprc"] = np.nan
 
     # confusion matrix
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     metrics.update({
-        "tp": tp,
-        "fp": fp,
-        "tn": tn,
-        "fn": fn,
-        "sensitivity": tp / (tp + fn) if (tp + fn) > 0 else 0.0,  # recall
+        "tp": int(tp),
+        "fp": int(fp),
+        "tn": int(tn),
+        "fn": int(fn),
+        # sensitivity / specificity (existing names kept for compatibility)
+        "sensitivity": tp / (tp + fn) if (tp + fn) > 0 else 0.0,
         "specificity": tn / (tn + fp) if (tn + fp) > 0 else 0.0,
+        # per-class accuracy (explicit aliases — useful for focal loss tuning)
+        # acc_class1 = how often NE cases are correctly identified  (= sensitivity)
+        # acc_class0 = how often normal cases are correctly identified (= specificity)
+        "acc_class1": tp / (tp + fn) if (tp + fn) > 0 else 0.0,
+        "acc_class0": tn / (tn + fp) if (tn + fp) > 0 else 0.0,
     })
 
     return metrics
+
+
+# -------------------------
+# Subject-level aggregation
+# -------------------------
+
+def aggregate_subject_predictions(subject_ids, y_prob, y_true):
+    """
+    Average window-level predicted probabilities per subject, then compute
+    metrics at the subject level.
+
+    Use this at test time when each subject contributes multiple windows.
+    All windows from the same subject get the same label (inherited from
+    the subject), so we average their predicted probabilities before
+    computing AUROC / F1 / etc.
+
+    Parameters
+    ----------
+    subject_ids : array-like, shape (N,)
+        Subject identifier for each window (e.g. Study_ID strings).
+    y_prob : array-like, shape (N,)
+        Window-level predicted probabilities for the positive class.
+    y_true : array-like, shape (N,)
+        Window-level ground-truth labels (same for all windows of a subject).
+
+    Returns
+    -------
+    metrics : dict   — subject-level metrics
+    subj_prob : np.ndarray (n_subjects,)  — averaged probabilities
+    subj_true : np.ndarray (n_subjects,)  — one label per subject
+    """
+    subject_ids = np.asarray(subject_ids)
+    y_prob      = np.asarray(y_prob)
+    y_true      = np.asarray(y_true)
+
+    unique_subjects = np.unique(subject_ids)
+    subj_prob = np.array([y_prob[subject_ids == s].mean() for s in unique_subjects])
+    subj_true = np.array([y_true[subject_ids == s][0]    for s in unique_subjects])
+
+    metrics = binary_classification_metrics(subj_true, subj_prob, threshold=0.5)
+    return metrics, subj_prob, subj_true
 
 
 # -------------------------
