@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from utils.metrics import binary_classification_metrics, multiclass_classification_metrics
+from utils.metrics import binary_classification_metrics, multiclass_classification_metrics, find_optimal_threshold
 from utils.tools import EarlyStopping, adjust_learning_rate
 
 warnings.filterwarnings('ignore')
@@ -234,6 +234,9 @@ class Exp_Classification(Exp_Basic):
                 train_losses.append(loss.item())
 
             val_loss, val_metric, _, _ = self.validate(val_loader, criterion)
+            self.optimal_threshold = find_optimal_threshold(val_trues, val_probs)
+            print(f"Optimal threshold (val): {self.optimal_threshold:.3f}")
+            return self.model
 
             print(
                 f"Epoch {epoch+1:3d} | "

@@ -8,6 +8,7 @@ from sklearn.metrics import (
     roc_auc_score,
     average_precision_score,
     confusion_matrix,
+    roc_curve,
 )
 
 # -------------------------
@@ -157,3 +158,10 @@ def multiclass_classification_metrics(
     }
 
     return metrics
+
+def find_optimal_threshold(y_true, y_prob):
+    """Find threshold maximising Youden's J (sensitivity + specificity - 1)."""
+    fpr, tpr, thresholds = roc_curve(y_true, y_prob)
+    j_scores = tpr + (1 - fpr) - 1      # sensitivity + specificity - 1
+    best_idx = np.argmax(j_scores)
+    return float(thresholds[best_idx])
