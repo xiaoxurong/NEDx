@@ -6,7 +6,7 @@ lstm_hidden:  64
 lstm_layers:  1
 dropout:      0.3
 use_focal:    true
-focal_alpha:  0.87
+focal_alpha:  0.85
 focal_gamma:  2.0
 n_folds:      5
 seed:         42
