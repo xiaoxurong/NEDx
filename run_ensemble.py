@@ -48,11 +48,12 @@ def load_args_from_yaml(config_path: str) -> argparse.Namespace:
     args.device_ids    = [0]
 
     # Defaults that might be missing from YAML
+    args.data          = getattr(args, 'data',        'CTG')
     args.num_workers   = getattr(args, 'num_workers', 4)
     args.checkpoints   = getattr(args, 'checkpoints', './checkpoints/')
-    args.lradj         = getattr(args, 'lradj', 'type1')
-    args.use_norm      = getattr(args, 'use_norm', 1)
-    args.moving_avg    = getattr(args, 'moving_avg', 13)
+    args.lradj         = getattr(args, 'lradj',       'type1')
+    args.use_norm      = getattr(args, 'use_norm',    1)
+    args.moving_avg    = getattr(args, 'moving_avg',  13)
     args.enc_in        = getattr(args, 'enc_in', getattr(args, 'in_channels', 2))
     return args
 
@@ -135,6 +136,7 @@ def main():
             model_args.test_idx    = test_idx
             model_args.root_path   = base_args.root_path
             model_args.data_path   = base_args.data_path
+            model_args.data        = base_args.data
             model_args.seq_len     = base_args.seq_len
             model_args.num_classes = base_args.num_classes
             model_args.n_folds     = n_folds

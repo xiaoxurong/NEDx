@@ -17,6 +17,7 @@ use_focal:     true
 focal_alpha:   0.84         # ≈ 1 - (39/290)
 focal_gamma:   2.0
 
+data:      "CTG"
 root_path:     "./dataset/"
 data_path:     "CTGMultiWindow.npz"
 seq_len:       7200
